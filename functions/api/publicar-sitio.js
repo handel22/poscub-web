@@ -1,1 +1,22 @@
-ZXhwb3J0IGFzeW5jIGZ1bmN0aW9uIG9uUmVxdWVzdFBvc3QoY29udGV4dCkgewogIHRyeSB7CiAgICBjb25zdCBib2R5ID0gYXdhaXQgY29udGV4dC5yZXF1ZXN0Lmpzb24oKTsKICAgIGNvbnN0IHsgc2x1ZywgaHRtbCwgYnVzaW5lc3NfbmFtZSwgbGljZW5zZV90eXBlIH0gPSBib2R5OwogICAgaWYgKGxpY2Vuc2VfdHlwZSAhPT0gJ3Blcm1hbmVudCcpIHsKICAgICAgcmV0dXJuIFJlc3BvbnNlLmpzb24oeyBzdWNjZXNzOiBmYWxzZSwgZXJyb3I6ICdTb2xvIGxpY2VuY2lhcyBQZXJtYW5lbnRlcycgfSwgeyBzdGF0dXM6IDQwMyB9KTsKICAgIH0KICAgIGlmICghc2x1ZyB8fCAhL15bYS16MC05LV17MSw0MH0kLy50ZXN0KHNsdWcpKSB7CiAgICAgIHJldHVybiBSZXNwb25zZS5qc29uKHsgc3VjY2VzczogZmFsc2UsIGVycm9yOiAnU2x1ZyBpbnbDoWxpZG8nIH0sIHsgc3RhdHVzOiA0MDAgfSk7CiAgICB9CiAgICBpZiAoIWh0bWwgfHwgaHRtbC5sZW5ndGggPiA1MDAwMDApIHsKICAgICAgcmV0dXJuIFJlc3BvbnNlLmpzb24oeyBzdWNjZXNzOiBmYWxzZSwgZXJyb3I6ICdIVE1MIGludsOhbGlkbycgfSwgeyBzdGF0dXM6IDQwMCB9KTsKICAgIH0KICAgIGF3YWl0IGNvbnRleHQuZW52LlNJVElPUy5wdXQoYHNpdGlvOiR7c2x1Z31gLCBodG1sLCB7CiAgICAgIG1ldGFkYXRhOiB7IGJ1c2luZXNzX25hbWU6IGJ1c2luZXNzX25hbWUgfHwgc2x1ZywgdXBkYXRlZDogbmV3IERhdGUoKS50b0lTT1N0cmluZygpIH0sCiAgICB9KTsKICAgIGNvbnN0IHNpdGVVcmwgPSBgaHR0cHM6Ly9wb3NjdWItc2l0aW9zLnBhZ2VzLmRldi9zaXRpby8ke3NsdWd9YDsKICAgIHJldHVybiBSZXNwb25zZS5qc29uKHsgc3VjY2VzczogdHJ1ZSwgdXJsOiBzaXRlVXJsLCBzbHVnIH0pOwogIH0gY2F0Y2ggKGUpIHsKICAgIHJldHVybiBSZXNwb25zZS5qc29uKHsgc3VjY2VzczogZmFsc2UsIGVycm9yOiAnRXJyb3I6ICcgKyBlLm1lc3NhZ2UgfSwgeyBzdGF0dXM6IDUwMCB9KTsKICB9Cn0K
+export async function onRequestPost(context) {
+  try {
+    const body = await context.request.json();
+    const { slug, html, business_name, license_type } = body;
+    if (license_type !== 'permanent') {
+      return Response.json({ success: false, error: 'Solo licencias Permanentes' }, { status: 403 });
+    }
+    if (!slug || !/^[a-z0-9-]{1,40}$/.test(slug)) {
+      return Response.json({ success: false, error: 'Slug inválido' }, { status: 400 });
+    }
+    if (!html || html.length > 500000) {
+      return Response.json({ success: false, error: 'HTML inválido' }, { status: 400 });
+    }
+    await context.env.SITIOS.put(`sitio:${slug}`, html, {
+      metadata: { business_name: business_name || slug, updated: new Date().toISOString() },
+    });
+    const siteUrl = `https://poscub-sitios.pages.dev/sitio/${slug}`;
+    return Response.json({ success: true, url: siteUrl, slug });
+  } catch (e) {
+    return Response.json({ success: false, error: 'Error: ' + e.message }, { status: 500 });
+  }
+}
