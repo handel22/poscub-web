@@ -1,7 +1,7 @@
 export async function onRequestPost(context) {
   try {
     const body = await context.request.json();
-    const { slug, html, business_name, license_type } = body;
+    const { slug, html, business_name, license_type, device_id } = body;
     if (license_type !== 'permanent') {
       return Response.json({ success: false, error: 'Solo licencias Permanentes' }, { status: 403 });
     }
@@ -11,8 +11,30 @@ export async function onRequestPost(context) {
     if (!html || html.length > 500000) {
       return Response.json({ success: false, error: 'HTML inválido' }, { status: 400 });
     }
+
+    // Verificar si el slug ya está ocupado por OTRO negocio
+    let finalSlug = slug;
+    const existing = await context.env.SITIOS.get("sitio-owner:" + slug);
+    if (existing && existing !== (device_id || '')) {
+      // Ocupado por otro: buscar un slug libre (mi-tienda-2, mi-tienda-3...)
+      let n = 2;
+      while (n < 100) {
+        const candidate = (slug + '-' + n).slice(0, 40);
+        const taken = await context.env.SITIOS.get("sitio-owner:" + candidate);
+        if (!taken) { finalSlug = candidate; break; }
+        n++;
+      }
+      if (n >= 100) {
+        return Response.json({ success: false, error: 'No se pudo asignar dirección' }, { status: 500 });
+      }
+    }
+    // Registrar el dueño del slug
+    if (device_id) {
+      await context.env.SITIOS.put("sitio-owner:" + finalSlug, device_id);
+    }
+
     // HTML estatico (compatibilidad con versiones anteriores de la APK)
-    await context.env.SITIOS.put("sitio:" + slug, html);
+    await context.env.SITIOS.put("sitio:" + finalSlug, html);
 
     // Datos estructurados para la tienda (sin metadata: rompe el build de Pages)
     const rawProducts = Array.isArray(body.products) ? body.products : [];
@@ -46,10 +68,10 @@ export async function onRequestPost(context) {
       delivery_zones,
       updated_at: new Date().toISOString(),
     };
-    await context.env.SITIOS.put("sitio-data:" + slug, JSON.stringify(data));
+    await context.env.SITIOS.put("sitio-data:" + finalSlug, JSON.stringify(data));
 
-    const siteUrl = "https://poscub-sitios.pages.dev/sitio/" + slug;
-    return Response.json({ success: true, url: siteUrl, slug });
+    const siteUrl = "https://poscub-sitios.pages.dev/sitio/" + finalSlug;
+    return Response.json({ success: true, url: siteUrl, slug: finalSlug });
   } catch (e) {
     return Response.json({ success: false, error: 'Error: ' + e.message }, { status: 500 });
   }
